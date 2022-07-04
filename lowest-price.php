@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Plugin Name: WooCommerce Lowest Price
  * Description: Display lowest price in last 30 days
@@ -9,38 +10,41 @@
  * Text Domain: lowest-price
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (!defined('ABSPATH')) {
     exit;
 }
 
 // @todo: move to settings
-if ( ! defined( 'WPLP_DISPLAY_TYPE' ) ) {
-    define( 'WPLP_DISPLAY_TYPE', 'regular' );
+if (!defined('WPLP_DISPLAY_TYPE')) {
+    define('WPLP_DISPLAY_TYPE', 'regular');
 }
 
-if ( ! defined( 'WPLP_VARIANT_LOOP' ) ) {
-    define( 'WPLP_VARIANT_LOOP', 'range' );
+if (!defined('WPLP_VARIANT_LOOP')) {
+    define('WPLP_VARIANT_LOOP', 'range');
 }
 
-class Lowest_Price {
+class Lowest_Price
+{
 
-    private $min_php = '5.6.0';
-    public static $use_i18n = true;
-    public static $providers = array( 'Front' );
+    private $min_php         = '5.6.0';
+    public static $use_i18n  = true;
+    public static $providers = ['Front'];
     public static $plugin_url;
     public static $plugin_path;
     public static $plugin_version;
     protected static $_instance = null;
 
-    public static function instance() {
-        null === self::$_instance and self::$_instance = new self;
+    public static function instance()
+    {
+        null === self::$_instance and self::$_instance = new self();
         return self::$_instance;
     }
 
-    public function __construct() {
+    public function __construct()
+    {
 
-        if ( version_compare( PHP_VERSION, $this->min_php, '<=' ) ) {
-            add_action( 'admin_notices', array( $this, 'php_version_notice' ) );
+        if (version_compare(PHP_VERSION, $this->min_php, '<=')) {
+            add_action('admin_notices', [$this, 'php_version_notice']);
             return;
         }
 
@@ -49,262 +53,339 @@ class Lowest_Price {
         $this->init_hooks();
         $this->init_actions();
 
-        do_action( 'lowest_price_loaded' );
+        do_action('lowest_price_loaded');
     }
 
-    public function define_constants() {
+    public function define_constants()
+    {
 
-        if ( ! function_exists( 'get_plugin_data' ) ) {
-            require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+        if (!function_exists('get_plugin_data')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
 
-        $plugin_data = get_plugin_data( __FILE__ );
+        $plugin_data = get_plugin_data(__FILE__);
 
         self::$plugin_version = $plugin_data['Version'];
-        self::$plugin_url = plugins_url( '', __FILE__ );
-        self::$plugin_path = plugin_dir_path( __FILE__ );
+        self::$plugin_url     = plugins_url('', __FILE__);
+        self::$plugin_path    = plugin_dir_path(__FILE__);
     }
 
-    public function includes() {
+    public function includes()
+    {
 
-        include_once dirname( __FILE__ ) . '/inc/config/i18n.php';
-        include_once dirname( __FILE__ ) . '/inc/config/install.php';
-        include_once dirname( __FILE__ ) . '/inc/config/uninstall.php';
-        include_once dirname( __FILE__ ) . '/inc/front.php';
+        include_once dirname(__FILE__) . '/inc/config/i18n.php';
+        include_once dirname(__FILE__) . '/inc/config/install.php';
+        include_once dirname(__FILE__) . '/inc/config/uninstall.php';
+        include_once dirname(__FILE__) . '/inc/front.php';
 
-        foreach ( self::$providers as $class ) {
+        foreach (self::$providers as $class) {
             $class_object = '\Lowest_Price\\' . $class;
-            new $class_object;
+            new $class_object();
         }
-
     }
 
-    public function init_hooks() {
+    public function init_hooks()
+    {
 
-        register_activation_hook( __FILE__, array( '\Lowest_Price\config\install', 'run_install' ) );
+        register_activation_hook(__FILE__, ['\Lowest_Price\config\install', 'run_install']);
 
-        register_deactivation_hook( __FILE__, array( '\Lowest_Price\config\uninstall', 'run_uninstall' ) );
+        register_deactivation_hook(__FILE__, ['\Lowest_Price\config\uninstall', 'run_uninstall']);
 
-        if ( self::$use_i18n === true ) {
-            new \Lowest_Price\config\i18n( 'lowest-price' );
+        if (self::$use_i18n === true) {
+            new \Lowest_Price\config\i18n('lowest-price');
         }
-
     }
 
-    public function php_version_notice() {
+    public function php_version_notice()
+    {
 
-        if ( ! current_user_can( 'manage_options' ) ) {
+        if (!current_user_can('manage_options')) {
             return;
         }
 
-        $error = sprintf( __( 'Your installed PHP Version is: %s. ', 'lowest-price' ), PHP_VERSION );
-        $error .= sprintf( __( '<strong>WooCommerce Lowest Price</strong> requires PHP <strong>%s</strong> or greater.', 'lowest-price' ), $this->min_php );
-        ?>
+        $error = sprintf(esc_html__('Your installed PHP Version is: %s. ', 'lowest-price'), PHP_VERSION);
+        $error .= sprintf(esc_html__('<strong>WooCommerce Lowest Price</strong> requires PHP <strong>%s</strong> or greater.', 'lowest-price'), $this->min_php);
+?>
         <div class="error">
-            <p><?php printf( $error ); ?></p>
+            <p><?php printf($error); ?></p>
         </div>
-        <?php
+    <?php
     }
 
-    public static function log( $log ) {
-        if ( true === WP_DEBUG ) {
-            if ( is_array( $log ) || is_object( $log ) ) {
-                error_log( print_r( $log, true ) );
+    public static function log($log)
+    {
+        if (true === WP_DEBUG) {
+            if (is_array($log) || is_object($log)) {
+                error_log(print_r($log, true));
             } else {
-                error_log( $log );
+                error_log($log);
             }
         }
     }
 
-    public function init_actions() {
+    public function init_actions()
+    {
 
-        add_action( 'woocommerce_update_product', array( $this, 'product_update' ) );
-        add_action( 'woocommerce_update_product_variation', array( $this, 'variation_update' ) );
+        add_action('woocommerce_update_product', [$this, 'product_update']);
+        add_action('woocommerce_update_product_variation', [$this, 'variation_update']);
 
-        add_action( 'woocommerce_before_product_object_save', array( $this, 'object_before_update' ) );
-        add_action( 'woocommerce_before_variation_object_save', array( $this, 'object_before_update' ) );
+        add_action('woocommerce_before_product_object_save', [$this, 'object_before_update']);
+        add_action('woocommerce_before_variation_object_save', [$this, 'object_before_update']);
 
-        add_action( 'add_meta_boxes_product', array( $this, 'show_price_history' ) );
+        add_action('add_meta_boxes_product', [$this, 'show_price_history']);
 
+        add_action('woocommerce_product_options_general_product_data', [$this, 'add_custom_lowest_price_field_to_simple_product']);
+        add_action('woocommerce_process_product_meta', [$this, 'save_custom_lowest_price_field_on_simple_product']);
+
+        add_action('woocommerce_variation_options_pricing', [$this, 'add_custom_lowest_price_field_to_variations'], 10, 3);
+        add_action('woocommerce_save_product_variation', [$this, 'save_custom_lowest_price_field_variations'], 10, 2);
+        add_filter('woocommerce_available_variation', [$this, 'add_custom_lowest_price_field_variation_data']);
     }
 
-    public function show_price_history() {
+    public function add_custom_lowest_price_field_to_simple_product()
+    {
+        global $woocommerce, $post;
+        echo '<div class="">';
 
-        add_meta_box( 'lowest_price_history', __( 'Price history (30 days)', 'lowest-price' ), array( $this, 'price_history' ), 'product', 'normal', 'low' );
-
+        woocommerce_wp_text_input(
+            [
+                'id'                => '_custom_lowest_price',
+                'placeholder'       => esc_html('Lowest price', 'lowest-price'),
+                'label'             => esc_html('Lowest price', 'lowest-price'),
+                'type'              => 'number',
+                'custom_attributes' => [
+                    'step' => 'any',
+                    'min'  => '0'
+                ]
+            ]
+        );
+        echo '</div>';
     }
 
-    public function price_history( $product ) {
+    public function save_custom_lowest_price_field_on_simple_product($post_id)
+    {
+
+        // Custom Product Number Field
+        $_custom_lowest_price = $_POST['_custom_lowest_price'];
+        if (isset($_custom_lowest_price)) {
+            update_post_meta($post_id, '_custom_lowest_price', esc_attr($_custom_lowest_price));
+        }
+    }
+
+    public function add_custom_lowest_price_field_to_variations($loop, $variation_data, $variation)
+    {
+        woocommerce_wp_text_input([
+            'id'    => '_custom_lowest_price[' . $loop . ']',
+            'wrapper_class' => 'form-row form-row-first',
+            'class' => 'short',
+            'placeholder'       => esc_html('Lowest price', 'lowest-price'),
+            'label'             => esc_html('Lowest price', 'lowest-price'),
+            'type'              => 'text',
+            'custom_attributes' => [
+                'step' => 'any',
+                'min'  => '0'
+            ],
+            'value' => get_post_meta($variation->ID, '_custom_lowest_price', true)
+        ]);
+    }
+
+    public function save_custom_lowest_price_field_variations($variation_id, $i)
+    {
+        $_custom_lowest_price = $_POST['_custom_lowest_price'][$i];
+        if (isset($_custom_lowest_price)) {
+            update_post_meta($variation_id, '_custom_lowest_price', esc_attr($_custom_lowest_price));
+        }
+    }
+
+    public function add_custom_lowest_price_field_variation_data($variations)
+    {
+        $variations['custom_lowest_price'] = '<div class="woocommerce_customlowest_price">Custom Field: <span>' . get_post_meta($variations['variation_id'], '_custom_lowest_price', true) . '</span></div>';
+        return $variations;
+    }
+
+    public function show_price_history()
+    {
+
+        add_meta_box('lowest_price_history', esc_html__('Price history (30 days)', 'lowest-price'), [$this, 'price_history'], 'product', 'normal', 'low');
+    }
+
+    public function price_history($product)
+    {
 
         global $wpdb;
 
         $ts_30_days_ago = time() - 30 * 24 * 60 * 60;
 
-        $product_ids = array( $product->ID );
+        $product_ids = [$product->ID];
 
-        $_product = wc_get_product( $product->ID );
+        $_product = wc_get_product($product->ID);
 
-        if( $_product->get_type() == 'variable' && $_product->get_children()) {
+        if ($_product->get_type() == 'variable' && $_product->get_children()) {
 
-            $product_ids = array_merge( $product_ids, $_product->get_children() );
+            $product_ids = array_merge($product_ids, $_product->get_children());
         }
 
-        ?>
+    ?>
 
         <style>
-            .price_history { text-align: right; min-width: 400px; border: 1px solid #ddd; border-collapse: collapse; }
-            .price_history th, .price_history td { padding: 4px 10px; margin: 0; }
+            .price_history {
+                text-align: right;
+                min-width: 400px;
+                border: 1px solid #ddd;
+                border-collapse: collapse;
+            }
+
+            .price_history th,
+            .price_history td {
+                padding: 4px 10px;
+                margin: 0;
+            }
         </style>
 
 
-        <?php foreach( $product_ids as $product_id ) {
+        <?php foreach ($product_ids as $product_id) {
 
-            echo '<h3>' . __( 'Product', 'lowest-price' ) . ' #' . $product_id .'</h3>';
+            echo '<h3>' . esc_html__('Product', 'lowest-price') . ' #' . $product_id . '</h3>';
 
-            if( $results = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}price_history WHERE product_id = %d AND ( timestamp_end > %d OR timestamp_end = 0 ) ORDER BY timestamp DESC", $product_id, $ts_30_days_ago ), ARRAY_A ) ) {
+            if ($results = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->prefix}price_history WHERE product_id = %d AND ( timestamp_end > %d OR timestamp_end = 0 ) ORDER BY timestamp DESC", $product_id, $ts_30_days_ago), ARRAY_A)) {
 
-                ?>
+        ?>
 
                 <table class="price_history">
                     <thead>
                         <tr>
-                            <th><?php _e( 'Price', 'lowest-price' ); ?></th>
-                            <th><?php _e( 'Valid from', 'lowest-price' ); ?></th>
-                            <th><?php _e( 'Valid to', 'lowest-price' ); ?></th>
+                            <th><?php esc_html_e('Price', 'lowest-price'); ?></th>
+                            <th><?php esc_html_e('Valid from', 'lowest-price'); ?></th>
+                            <th><?php esc_html_e('Valid to', 'lowest-price'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach( $results as $k => $result ) : ?>
-                        <tr<?php if( $k%2 == 0 ) : ?> class="alternate"<?php endif; ?>>
-                            <td><?php echo wc_price( $result['price'] ); ?></td>
-                            <td><?php echo $result['timestamp'] ? wp_date( 'd.m.Y. H:i:s', $result['timestamp'] ) : '-'; ?></td>
-                            <td><?php echo $result['timestamp_end'] ? wp_date( 'd.m.Y. H:i:s', $result['timestamp_end'] ) : __( 'Active now', 'lowest-price' ); ?></td>
-                        </tr>
-                        <?php endforeach; ?>
+                        <?php foreach ($results as $k => $result) : ?>
+                            <tr<?php if ($k % 2 == 0) : ?> class="alternate" <?php endif; ?>>
+                                <td><?php echo wc_price($result['price']); ?></td>
+                                <td><?php echo $result['timestamp'] ? wp_date('d.m.Y. H:i:s', $result['timestamp']) : '-'; ?></td>
+                                <td><?php echo $result['timestamp_end'] ? wp_date('d.m.Y. H:i:s', $result['timestamp_end']) : esc_html__('Active now', 'lowest-price'); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
                     </tbody>
                 </table>
 
-                <?php
+<?php
 
             } else {
 
-                echo '<p>' . __( 'No price history yet', 'lowest-price' ) . '</p>';
+                echo '<p>' . esc_html__('No price history yet', 'lowest-price') . '</p>';
             }
-
         }
-
     }
 
-    public function update_price( $object_id, $new_price, $regular_price ) {
+    public function update_price($object_id, $new_price, $regular_price)
+    {
 
         global $wpdb;
 
-        $last_price = array(
-            'id' => 0,
-            'price' => 0,
-        );
+        $last_price = [
+            'id'    => 0,
+            'price' => 0
+        ];
 
         // GET LAST VALID PRICE
 
-        if( $result = $wpdb->get_row( $wpdb->prepare( "SELECT price_history_id AS id, price FROM {$wpdb->prefix}price_history WHERE product_id = %d AND timestamp_end = 0", $object_id ), ARRAY_A ) ) {
+        if ($result = $wpdb->get_row($wpdb->prepare("SELECT price_history_id AS id, price FROM {$wpdb->prefix}price_history WHERE product_id = %d AND timestamp_end = 0", $object_id), ARRAY_A)) {
 
             $last_price = $result;
-
         }
 
         // COMPARE IF PRICE IS CHANGED
 
-        if( $new_price && ( $new_price != $last_price['price'] ) ) {
+        if ($new_price && ($new_price != $last_price['price'])) {
 
-            if( $last_price['id'] ) {
+            if ($last_price['id']) {
 
                 // UPDATE "VALID TO" TIMESTAMP
 
-                $wpdb->query( 
-                    $wpdb->prepare( 
+                $wpdb->query(
+                    $wpdb->prepare(
                         "UPDATE {$wpdb->prefix}price_history SET timestamp_end = %d WHERE price_history_id = %d",
                         time(),
                         $last_price['id']
                     )
                 );
-
             }
 
             // SAVE LOWEST PRICE IN LAST 30 DAYS TO POSTMETA
 
-            update_post_meta( $object_id, '_lowest_price_30_days', self::get_lowest_price( $object_id, $regular_price ) );
+            update_post_meta($object_id, '_lowest_price_30_days', self::get_lowest_price($object_id, $regular_price));
 
             // INSERT NEW PRICE
 
-            $wpdb->insert("{$wpdb->prefix}price_history", array(
+            $wpdb->insert("{$wpdb->prefix}price_history", [
                 "product_id" => $object_id,
-                "price" => $new_price,
-                "timestamp" => time(),
-            ));
-
+                "price"      => $new_price,
+                "timestamp"  => time()
+            ]);
         }
-
     }
 
-    public function variation_update( $variation_id ) {
+    public function variation_update($variation_id)
+    {
 
-        $single_variation = new WC_Product_Variation( $variation_id );
+        $single_variation = new WC_Product_Variation($variation_id);
 
         $new_price = $single_variation->get_price();
 
         $regular_price = $single_variation->get_regular_price();
 
-        $this->update_price( $variation_id, $new_price, $regular_price );
-
+        $this->update_price($variation_id, $new_price, $regular_price);
     }
 
-    public function product_update( $product_id ) {
+    public function product_update($product_id)
+    {
 
-        $product = wc_get_product( $product_id );
+        $product = wc_get_product($product_id);
 
-        if( $product->get_type() == 'variable' ) {
-            $regular_price = $product->get_variation_regular_price( 'min' );
+        if ($product->get_type() == 'variable') {
+            $regular_price = $product->get_variation_regular_price('min');
         } else {
             $regular_price = $product->get_regular_price();
         }
 
         $new_price = $product->get_price();
 
-        $this->update_price( $product_id, $new_price, $regular_price );
-
+        $this->update_price($product_id, $new_price, $regular_price);
     }
 
-    public function object_before_update( $object ) {
+    public function object_before_update($object)
+    {
 
         global $wpdb;
 
         // IF PRICE HISTORY DON'T HAVE ANY PRICE, SAVE PREVIOUS
 
-        if( !$wpdb->get_row( $wpdb->prepare( "SELECT price_history_id FROM {$wpdb->prefix}price_history WHERE product_id = %d LIMIT 0, 1", $object->get_id() ), ARRAY_A ) && $object->get_price() ) {
+        if (!$wpdb->get_row($wpdb->prepare("SELECT price_history_id FROM {$wpdb->prefix}price_history WHERE product_id = %d LIMIT 0, 1", $object->get_id()), ARRAY_A) && $object->get_price()) {
 
             // INSERT REGULAR PRICE
 
-            if( $object->get_type() == 'variable' ) {
-                $regular_price = $object->get_variation_regular_price( 'min' );
+            if ($object->get_type() == 'variable') {
+                $regular_price = $object->get_variation_regular_price('min');
             } else {
                 $regular_price = $object->get_regular_price();
             }
 
-            update_post_meta( $object->get_id(), '_lowest_price_30_days', self::get_lowest_price( $object->get_id(), $regular_price ) );
+            update_post_meta($object->get_id(), '_lowest_price_30_days', self::get_lowest_price($object->get_id(), $regular_price));
 
             // INSERT ACTUAL PRICE
 
-            $wpdb->insert("{$wpdb->prefix}price_history", array(
+            $wpdb->insert("{$wpdb->prefix}price_history", [
                 "product_id" => $object->get_id(),
-                "price" => $object->get_price(),
-                "timestamp" => 0,
-            ));
-
+                "price"      => $object->get_price(),
+                "timestamp"  => 0
+            ]);
         }
-
     }
 
-    public static function get_lowest_price( $object_id, $price ) {
+    public static function get_lowest_price($object_id, $price)
+    {
 
         global $wpdb;
 
@@ -312,9 +393,9 @@ class Lowest_Price {
 
         // FETCH MIN PRICE IN LAST 30 DAYS FROM PRICE HISTORY DB TABLE
 
-        if( $result = $wpdb->get_row( $wpdb->prepare( "SELECT price FROM {$wpdb->prefix}price_history WHERE product_id = %d AND timestamp_end > %d ORDER BY price ASC LIMIT 0, 1", $object_id, $ts_30_days_ago ), ARRAY_A ) ) {
+        if ($result = $wpdb->get_row($wpdb->prepare("SELECT price FROM {$wpdb->prefix}price_history WHERE product_id = %d AND timestamp_end > %d ORDER BY price ASC LIMIT 0, 1", $object_id, $ts_30_days_ago), ARRAY_A)) {
 
-            if( $result['price'] < $price ) {
+            if ($result['price'] < $price) {
                 $price = $result['price'];
             }
         }
@@ -323,7 +404,8 @@ class Lowest_Price {
     }
 }
 
-function lowest_price() {
+function lowest_price()
+{
     return Lowest_Price::instance();
 }
 
